@@ -1,4 +1,9 @@
-# Neural Image Captioning
+# Neural Image Caption (NIC)
+
+This is a fork for the purposes of reproducing NIC results from CNN-LSTM architectures using different pre-trained models and hyperparameters for the Final Project Analysis for [CSC413/2516](https://csc413-uoft.github.io/2021) at the [University of Toronto](https://web.cs.toronto.edu). Our fork's experiments and results are in the notes at the bottom.
+
+---
+
 The goal of this project was to tackle the problem of automatic caption generation for images of real world scenes. The work consisted of reimplementing the Neural Image Captioning (NIC) model proposed by Vinyals et al. and running appropriate experiments to test its performance.
 
 The project was carried out as part of the ID2223 "Scalable Machine Learning and Deep Learning" course at [KTH Royal Institute of Technology](http://kth.se).
@@ -305,3 +310,10 @@ Studying the results of our experiments, we noted how increasing the number of h
 [1] Chung et al. (2014) Empirical Evaluation of Gated Recurrent Neural Networks on Sequence Modeling. arXiv:1412.3555.  
 [2] X. Chen et al. (2015) Microsoft COCO Captions: Data Collection and Evaluation Server. arXiv:1504.00325.  
 [3] O. Vinyals et al. (2014) Show and Tell: A Neural Image Captiong Generator, arXiv:1411.4555
+
+---
+
+# Analysis for CSC413/2516
+
+
+
