@@ -6,12 +6,14 @@ $ cd cocoapi/PythonAPI/
 $ make install
 """
 from dataset_coco import *
-from vocab import dump_vocab 
+from vocab import dump_vocab
 
 if __name__ == '__main__':
     import argparse
     parser = argparse.ArgumentParser()
-    parser.add_argument('--test', action='store_true',  help='Downloads the test set.')
+    parser.add_argument('--test',
+                        action='store_true',
+                        help='Downloads the test set.')
     args = parser.parse_args()
 
     try:

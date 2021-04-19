@@ -5,6 +5,7 @@ from torchvision import models
 from torch.autograd import Variable
 from torch.nn.utils.rnn import pack_padded_sequence
 
+
 class CNN(nn.Module):
     """Class to build new model including all but last layers"""
     def __init__(self, output_dim=1000):
@@ -18,13 +19,13 @@ class CNN(nn.Module):
 
     def init_weights(self):
         # weight init, inspired by tutorial
-        self.linear.weight.data.normal_(0,0.02)
+        self.linear.weight.data.normal_(0, 0.02)
         self.linear.bias.data.fill_(0)
 
     def forward(self, x):
         x = self.resnet(x)
         x = Variable(x.data)
-        x = x.view(x.size(0), -1) # flatten
+        x = x.view(x.size(0), -1)  # flatten
         x = self.linear(x)
 
         return x
@@ -35,10 +36,14 @@ class RNN(torch.nn.Module):
     Recurrent Neural Network for Text Generation.
     To be used as part of an Encoder-Decoder network for Image Captioning.
     """
-    __rec_units = {
-        'elman': nn.RNN, 'gru': nn.GRU, 'lstm': nn.LSTM }
+    __rec_units = {'elman': nn.RNN, 'gru': nn.GRU, 'lstm': nn.LSTM}
 
-    def __init__(self, emb_size, hidden_size, vocab_size, num_layers=1, rec_unit='gru'):
+    def __init__(self,
+                 emb_size,
+                 hidden_size,
+                 vocab_size,
+                 num_layers=1,
+                 rec_unit='gru'):
         """
         Initializer
 
@@ -53,8 +58,10 @@ class RNN(torch.nn.Module):
 
         super(RNN, self).__init__()
         self.embeddings = nn.Embedding(vocab_size, emb_size)
-        self.unit = RNN.__rec_units[rec_unit](emb_size, hidden_size, num_layers,
-                                                 batch_first=True)
+        self.unit = RNN.__rec_units[rec_unit](emb_size,
+                                              hidden_size,
+                                              num_layers,
+                                              batch_first=True)
         self.linear = nn.Linear(hidden_size, vocab_size)
 
     def forward(self, features, captions, lengths):

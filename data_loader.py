@@ -10,6 +10,7 @@ from vocab import Vocabulary
 from PIL import Image
 from pycocotools.coco import COCO
 
+
 class CocoDataset(data.Dataset):
     """Coco custom dataset class, compatible with Dataloader
        inspired by pytorch tutorial 03-advanced"""
@@ -23,12 +24,13 @@ class CocoDataset(data.Dataset):
         :param transform: a torchvision.transforms image transformer for preprocessing
         """
         self.path = path
-        self.coco = COCO(json) # object of Coco Helper Class
-        self.ids = list(self.coco.anns.keys()) # unique identifiers for annontations
+        self.coco = COCO(json)  # object of Coco Helper Class
+        self.ids = list(
+            self.coco.anns.keys())  # unique identifiers for annontations
         self.vocab = vocab
         self.transform = transform
 
-    def __getitem__(self,index):
+    def __getitem__(self, index):
         """special python method for indexing a dict. dict[index]
         helper method to get annotation by id from coco.anns
 
@@ -62,6 +64,7 @@ class CocoDataset(data.Dataset):
 
     def __len__(self):
         return len(self.ids)
+
 
 def collate_fn(data):
     """Create mini-batches of (image, caption)
@@ -97,14 +100,17 @@ def collate_fn(data):
         padded_captions[ix, :end] = caption[:end]
     return images, padded_captions, caption_lengths
 
-def get_coco_data_loader(path, json, vocab, transform=None,
-        batch_size=32, shuffle=True, num_workers=2):
+
+def get_coco_data_loader(path,
+                         json,
+                         vocab,
+                         transform=None,
+                         batch_size=32,
+                         shuffle=True,
+                         num_workers=2):
     """Returns custom COCO Dataloader"""
 
-    coco = CocoDataset(path=path,
-                       json=json,
-                       vocab=vocab,
-                       transform=transform)
+    coco = CocoDataset(path=path, json=json, vocab=vocab, transform=transform)
 
     data_loader = torch.utils.data.DataLoader(dataset=coco,
                                               batch_size=batch_size,
@@ -153,7 +159,12 @@ class ImagesDataset(data.Dataset):
         """
         return len(self.file_names)
 
-def get_basic_loader(dir_path, transform, batch_size=32, shuffle=True, num_workers=2):
+
+def get_basic_loader(dir_path,
+                     transform,
+                     batch_size=32,
+                     shuffle=True,
+                     num_workers=2):
     """
     Returns torch.utils.data.DataLoader for custom coco dataset.
     :param dir_path:
@@ -172,6 +183,8 @@ def get_basic_loader(dir_path, transform, batch_size=32, shuffle=True, num_worke
     # images: tensor of shape (batch_size, 3, 224, 224).
     # captions: tensor of shape (batch_size, padded_length).
     # lengths: list indicating valid length for each caption. length is (batch_size).
-    data_loader = data.DataLoader(dataset=datas, batch_size=batch_size,
-                                  shuffle=shuffle, num_workers=num_workers)
+    data_loader = data.DataLoader(dataset=datas,
+                                  batch_size=batch_size,
+                                  shuffle=shuffle,
+                                  num_workers=num_workers)
     return data_loader

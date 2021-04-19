@@ -13,6 +13,7 @@ from models import CNN, RNN
 from vocab import Vocabulary, load_vocab
 import os
 
+
 def main(args):
     # hyperparameters
     batch_size = args.batch_size
@@ -24,7 +25,7 @@ def main(args):
         transforms.RandomHorizontalFlip(),
         transforms.ToTensor(),
         transforms.Normalize((0.485, 0.456, 0.406), (0.229, 0.224, 0.225)),
-        ])
+    ])
 
     # load COCOs dataset
     IMAGES_PATH = 'data/train2014'
@@ -49,7 +50,6 @@ def main(args):
                                       shuffle=True,
                                       num_workers=num_workers)
 
-
     losses_val = []
     losses_train = []
 
@@ -65,18 +65,24 @@ def main(args):
     checkpoint_dir = args.checkpoint_dir
 
     encoder = CNN(embed_size)
-    decoder = RNN(embed_size, num_hiddens, len(vocab), 1, rec_unit=args.rec_unit)
+    decoder = RNN(embed_size,
+                  num_hiddens,
+                  len(vocab),
+                  1,
+                  rec_unit=args.rec_unit)
 
     # Loss
     criterion = nn.CrossEntropyLoss()
 
     if args.checkpoint_file:
-        encoder_state_dict, decoder_state_dict, optimizer, *meta = utils.load_models(args.checkpoint_file,args.sample)
+        encoder_state_dict, decoder_state_dict, optimizer, *meta = utils.load_models(
+            args.checkpoint_file, args.sample)
         initial_step, initial_epoch, losses_train, losses_val = meta
         encoder.load_state_dict(encoder_state_dict)
         decoder.load_state_dict(decoder_state_dict)
     else:
-        params = list(decoder.parameters()) + list(encoder.linear.parameters()) + list(encoder.batchnorm.parameters())
+        params = list(decoder.parameters()) + list(
+            encoder.linear.parameters()) + list(encoder.batchnorm.parameters())
         optimizer = torch.optim.Adam(params, lr=learning_rate)
 
     if torch.cuda.is_available():
@@ -91,21 +97,26 @@ def main(args):
     try:
         for epoch in range(initial_epoch, num_epochs):
 
-            for step, (images, captions, lengths) in enumerate(train_loader, start=initial_step):
+            for step, (images, captions,
+                       lengths) in enumerate(train_loader, start=initial_step):
 
                 # Set mini-batch dataset
                 images = utils.to_var(images, volatile=True)
                 captions = utils.to_var(captions)
-                targets = pack_padded_sequence(captions, lengths, batch_first=True)[0]
-                
+                targets = pack_padded_sequence(captions,
+                                               lengths,
+                                               batch_first=True)[0]
+
                 # Forward, Backward and Optimize
                 decoder.zero_grad()
                 encoder.zero_grad()
 
                 if ngpu > 1:
                     # run on multiple GPU
-                    features = nn.parallel.data_parallel(encoder, images, range(ngpu))
-                    outputs = nn.parallel.data_parallel(decoder, features, range(ngpu))
+                    features = nn.parallel.data_parallel(
+                        encoder, images, range(ngpu))
+                    outputs = nn.parallel.data_parallel(
+                        decoder, features, range(ngpu))
                 else:
                     # run on single GPU
                     features = encoder(images)
@@ -121,11 +132,14 @@ def main(args):
                     encoder.batchnorm.eval()
                     # run validation set
                     batch_loss_val = []
-                    for val_step, (images, captions, lengths) in enumerate(val_loader):
+                    for val_step, (images, captions,
+                                   lengths) in enumerate(val_loader):
                         images = utils.to_var(images, volatile=True)
                         captions = utils.to_var(captions, volatile=True)
 
-                        targets = pack_padded_sequence(captions, lengths, batch_first=True)[0]
+                        targets = pack_padded_sequence(captions,
+                                                       lengths,
+                                                       batch_first=True)[0]
                         features = encoder(images)
                         outputs = decoder(features, captions, lengths)
                         val_loss = criterion(outputs, targets)
@@ -143,39 +157,63 @@ def main(args):
                     sentence = utils.convert_back_to_text(true_ids, vocab)
                     print('Target:', sentence)
 
-                    print('Epoch: {} - Step: {} - Train Loss: {} - Eval Loss: {}'.format(epoch, step, losses_train[-1], losses_val[-1]))
+                    print(
+                        'Epoch: {} - Step: {} - Train Loss: {} - Eval Loss: {}'
+                        .format(epoch, step, losses_train[-1], losses_val[-1]))
                     encoder.batchnorm.train()
 
                 # Save the models
-                if (step+1) % save_step == 0:
-                    utils.save_models(encoder, decoder, optimizer, step, epoch, losses_train, losses_val, checkpoint_dir)
-                    utils.dump_losses(losses_train, losses_val, os.path.join(checkpoint_dir, 'losses.pkl'))
+                if (step + 1) % save_step == 0:
+                    utils.save_models(encoder, decoder, optimizer, step, epoch,
+                                      losses_train, losses_val, checkpoint_dir)
+                    utils.dump_losses(
+                        losses_train, losses_val,
+                        os.path.join(checkpoint_dir, 'losses.pkl'))
 
     except KeyboardInterrupt:
         pass
     finally:
         # Do final save
-        utils.save_models(encoder, decoder, optimizer, step, epoch, losses_train, losses_val, checkpoint_dir)
-        utils.dump_losses(losses_train, losses_val, os.path.join(checkpoint_dir, 'losses.pkl'))
+        utils.save_models(encoder, decoder, optimizer, step, epoch,
+                          losses_train, losses_val, checkpoint_dir)
+        utils.dump_losses(losses_train, losses_val,
+                          os.path.join(checkpoint_dir, 'losses.pkl'))
+
 
 if __name__ == '__main__':
     import argparse
     parser = argparse.ArgumentParser()
-    parser.add_argument('--checkpoint_file', type=str,
-            default=None, help='path to saved checkpoint')
-    parser.add_argument('--checkpoint_dir', type=str,
-            default='checkpoints', help='directory to save checkpoints')
-    parser.add_argument('--batch_size', type=int,
-            default=128, help='size of batches')
-    parser.add_argument('--rec_unit', type=str,
-            default='gru', help='choose "gru", "lstm" or "elman"')
-    parser.add_argument('--sample', default=False, 
-            action='store_true', help='just show result, requires --checkpoint_file')
-    parser.add_argument('--log_step', type=int,
-            default=125, help='number of steps in between calculating loss')
-    parser.add_argument('--num_hidden', type=int,
-            default=512, help='number of hidden units in the RNN')
-    parser.add_argument('--embed_size', type=int,
-            default=512, help='number of embeddings in the RNN')
+    parser.add_argument('--checkpoint_file',
+                        type=str,
+                        default=None,
+                        help='path to saved checkpoint')
+    parser.add_argument('--checkpoint_dir',
+                        type=str,
+                        default='checkpoints',
+                        help='directory to save checkpoints')
+    parser.add_argument('--batch_size',
+                        type=int,
+                        default=128,
+                        help='size of batches')
+    parser.add_argument('--rec_unit',
+                        type=str,
+                        default='gru',
+                        help='choose "gru", "lstm" or "elman"')
+    parser.add_argument('--sample',
+                        default=False,
+                        action='store_true',
+                        help='just show result, requires --checkpoint_file')
+    parser.add_argument('--log_step',
+                        type=int,
+                        default=125,
+                        help='number of steps in between calculating loss')
+    parser.add_argument('--num_hidden',
+                        type=int,
+                        default=512,
+                        help='number of hidden units in the RNN')
+    parser.add_argument('--embed_size',
+                        type=int,
+                        default=512,
+                        help='number of embeddings in the RNN')
     args = parser.parse_args()
     main(args)
