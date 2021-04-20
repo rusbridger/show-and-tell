@@ -46,7 +46,7 @@ class CocoDataset(data.Dataset):
         image_id = coco.anns[annotation_id]['image_id']
         path = coco.loadImgs(image_id)[0]['file_name']
 
-        image = Image.open(os.path.join(self.path, path))
+        image = Image.open("{}/{}".format(self.path, path))
         image = image.convert('RGB')
 
         if self.transform != None:

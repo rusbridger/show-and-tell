@@ -109,31 +109,32 @@ def convert_back_to_text(idx_arr, vocab):
 
 
 def sample(encoder, decoder, vocab, val_loader):
-    encoder.batchnorm.eval()
-    # run validation set
-    images, captions, lengths = next(iter(val_loader))
-    captions = to_var(captions, volatile=True)
+    with torch.no_grad():
+        encoder.batchnorm.eval()
+        # run validation set
+        images, captions, lengths = next(iter(val_loader))
+        captions = to_var(captions)
 
-    targets = nn.utils.rnn.pack_padded_sequence(captions,
-                                                lengths,
-                                                batch_first=True)[0]
-    features = encoder(to_var(images, volatile=True))
+        targets = nn.utils.rnn.pack_padded_sequence(captions,
+                                                    lengths,
+                                                    batch_first=True)[0]
+        features = encoder(to_var(images))
 
-    # predict
-    sampled_ids = decoder.sample(features)
+        # predict
+        sampled_ids = decoder.sample(features)
 
-    sampled_ids = sampled_ids.cpu().data.numpy()[0]
-    predicted = convert_back_to_text(sampled_ids, vocab)
+        sampled_ids = sampled_ids.cpu().data.numpy()[0]
+        predicted = convert_back_to_text(sampled_ids, vocab)
 
-    true_ids = captions.cpu().data.numpy()[0]
-    target = convert_back_to_text(true_ids, vocab)
+        true_ids = captions.cpu().data.numpy()[0]
+        target = convert_back_to_text(true_ids, vocab)
 
-    out = make_grid(images[0])
-    print('Target: ', target)
-    print('Prediction: ', predicted)
-    imshow(out,
-           figsize=(10, 6),
-           title='Target: %s\nPrediction: %s' % (target, predicted))
+        out = make_grid(images[0])
+        print('Target: ', target)
+        print('Prediction: ', predicted)
+        imshow(out,
+            figsize=(10, 6),
+            title='Target: %s\nPrediction: %s' % (target, predicted))
 
 
 def to_var(x, volatile=False):

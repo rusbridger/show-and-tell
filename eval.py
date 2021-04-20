@@ -6,12 +6,13 @@ from torch.autograd import Variable
 from torch.nn.utils.rnn import pack_padded_sequence
 import torch.optim as optim
 import torch.nn as nn
-from torch import np
+import numpy as np
 import utils
 from data_loader import get_coco_data_loader, get_basic_loader
 from models import CNN, RNN
 from vocab import Vocabulary, load_vocab
 import os
+from tqdm import tqdm
 
 
 def main(args):
@@ -59,21 +60,22 @@ def main(args):
     # Train the Models
     try:
         results = []
-        for step, (images, image_ids) in enumerate(loader):
-            images = utils.to_var(images, volatile=True)
+        with torch.no_grad():
+            for step, (images, image_ids) in enumerate(tqdm(loader)):
+                images = utils.to_var(images)
 
-            features = encoder(images)
-            captions = decoder.sample(features)
-            captions = captions.cpu().data.numpy()
-            captions = [
-                utils.convert_back_to_text(cap, vocab) for cap in captions
-            ]
-            captions_formatted = [{
-                'image_id': int(img_id),
-                'caption': cap
-            } for img_id, cap in zip(image_ids, captions)]
-            results.extend(captions_formatted)
-            print('Sample:', captions_formatted)
+                features = encoder(images)
+                captions = decoder.sample(features)
+                captions = captions.cpu().data.numpy()
+                captions = [
+                    utils.convert_back_to_text(cap, vocab) for cap in captions
+                ]
+                captions_formatted = [{
+                    'image_id': int(img_id),
+                    'caption': cap
+                } for img_id, cap in zip(image_ids, captions)]
+                results.extend(captions_formatted)
+                print('Sample:', captions_formatted)
     except KeyboardInterrupt:
         print('Ok bye!')
     finally:

@@ -6,18 +6,19 @@ from torch.autograd import Variable
 from torch.nn.utils.rnn import pack_padded_sequence
 import torch.optim as optim
 import torch.nn as nn
-from torch import np
+# from torch import np
 import utils
 from data_loader import get_coco_data_loader
 from models import CNN, RNN
 from vocab import Vocabulary, load_vocab
 import os
+from tqdm import tqdm
 
 
 def main(args):
     # hyperparameters
     batch_size = args.batch_size
-    num_workers = 1
+    num_workers = 4
 
     # Image Preprocessing
     transform = transforms.Compose([
@@ -61,7 +62,7 @@ def main(args):
     learning_rate = 1e-3
     num_epochs = 3
     log_step = args.log_step
-    save_step = 500
+    save_step = 1000
     checkpoint_dir = args.checkpoint_dir
 
     encoder = CNN(embed_size)
@@ -94,14 +95,15 @@ def main(args):
 
     # Train the Models
     total_step = len(train_loader)
+    print("total steps: {}".format(total_step))
     try:
         for epoch in range(initial_epoch, num_epochs):
 
             for step, (images, captions,
-                       lengths) in enumerate(train_loader, start=initial_step):
+                       lengths) in enumerate(tqdm(train_loader), start=initial_step):
 
                 # Set mini-batch dataset
-                images = utils.to_var(images, volatile=True)
+                images = utils.to_var(images)
                 captions = utils.to_var(captions)
                 targets = pack_padded_sequence(captions,
                                                lengths,
@@ -119,33 +121,35 @@ def main(args):
                         decoder, features, range(ngpu))
                 else:
                     # run on single GPU
-                    features = encoder(images)
+                    with torch.no_grad():
+                        features = encoder(images)
                     outputs = decoder(features, captions, lengths)
 
                 train_loss = criterion(outputs, targets)
-                losses_train.append(train_loss.data[0])
+                losses_train.append(train_loss.item())
                 train_loss.backward()
                 optimizer.step()
 
                 # Run validation set and predict
-                if step % log_step == 0:
+                if (step + 1) % log_step == 0:
                     encoder.batchnorm.eval()
                     # run validation set
                     batch_loss_val = []
-                    for val_step, (images, captions,
-                                   lengths) in enumerate(val_loader):
-                        images = utils.to_var(images, volatile=True)
-                        captions = utils.to_var(captions, volatile=True)
+                    with torch.no_grad():
+                        for val_step, (images, captions,
+                                    lengths) in enumerate(tqdm(val_loader)):
+                            images = utils.to_var(images)
+                            captions = utils.to_var(captions)
 
-                        targets = pack_padded_sequence(captions,
-                                                       lengths,
-                                                       batch_first=True)[0]
-                        features = encoder(images)
-                        outputs = decoder(features, captions, lengths)
-                        val_loss = criterion(outputs, targets)
-                        batch_loss_val.append(val_loss.data[0])
+                            targets = pack_padded_sequence(captions,
+                                                        lengths,
+                                                        batch_first=True)[0]
+                            features = encoder(images)
+                            outputs = decoder(features, captions, lengths)
+                            val_loss = criterion(outputs, targets)
+                            batch_loss_val.append(val_loss.item())
 
-                    losses_val.append(np.mean(batch_loss_val))
+                    losses_val.append(torch.mean(torch.tensor(batch_loss_val)))
 
                     # predict
                     sampled_ids = decoder.sample(features)
