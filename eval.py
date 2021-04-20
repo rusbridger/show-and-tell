@@ -16,10 +16,11 @@ import os
 from tqdm import tqdm
 
 def beam_sample(decoder, features, max_len=25, k=5):
-    batch_size = features.shape[0]
+    batch_size, hidden_size = features.shape
     output_ids = torch.zeros(batch_size, k, max_len, dtype=torch.int).cuda()
     output_probs = torch.ones(batch_size, k, dtype=torch.int).cuda()
-    states = [None for i in range(k)]
+    hidden_state = torch.zeros(1, batch_size, k, hidden_size).cuda()
+    cell_state = torch.zeros(1, batch_size, k, hidden_size).cuda()
     inputs = [features.unsqueeze(1) for i in range(k)] # (B, 1, H)
     vocab_size = decoder.linear.out_features
 
@@ -27,10 +28,15 @@ def beam_sample(decoder, features, max_len=25, k=5):
         # pass data through recurrent network
         outputs = []
         for j in range(k):
-            hiddens, states[j] = decoder.unit(inputs[j], states[j])
+            if i == 0:
+                hiddens, states = decoder.unit(inputs[j], None)
+            else:
+                hiddens, states = decoder.unit(inputs[j], (hidden_state[:, :, j, :].contiguous(), cell_state[:, :, j, :].contiguous()))
+            
+            hidden_state[:, :, j, :], cell_state[:, :, j, :] = states
+
             logits = decoder.linear(hiddens.squeeze(1))
-            # outputs.append(softmax(logits, dim=1))
-            outputs.append(logits)
+            outputs.append(log_softmax(logits, dim=1))
             outputs[j] += output_probs[:, j].unsqueeze(1).expand(batch_size, vocab_size)
 
         if i == 0:
@@ -38,26 +44,24 @@ def beam_sample(decoder, features, max_len=25, k=5):
         else:
             outputs = torch.cat(outputs, dim=1)
 
-        predicted = outputs.topk(k, dim=1)[1]
-        output_probs = predicted.detach().clone()
+        top_k = outputs.topk(k, dim=1)
+        output_probs, predicted = top_k
         branch_ids = predicted // vocab_size
         predicted %= vocab_size
 
         new_ids = torch.zeros(batch_size, k, max_len, dtype=torch.int)
+        new_hidden_state = torch.zeros(*hidden_state.shape).cuda()
+        new_cell_state   = torch.zeros(*cell_state.shape).cuda()
         for b in range(batch_size):
             new_ids[b] = output_ids[b, branch_ids[b]]
-            # for j in range(k):
-            #     new_ids[b, j] = output_ids[b, branch_ids[b, j]]
             new_ids[b, :, i] = predicted[b]
+
+            new_hidden_state[:, b, :, :] = hidden_state[:, b, branch_ids[b], :]
+            new_cell_state[:, b, :, :] = cell_state[:, b, branch_ids[b], :]
         
         output_ids = new_ids
-
-        new_states = [(torch.zeros(*states[j][0].shape).cuda(), torch.zeros(*states[j][1].shape).cuda()) for j in range(k)]
-        for b in range(batch_size):
-            for j in range(k):
-                new_states[j][0][0, b] = states[branch_ids[b, j]][0][0, b]
-                new_states[j][1][0, b] = states[branch_ids[b, j]][1][0, b]
-        states = new_states
+        hidden_state = new_hidden_state
+        cell_state = new_cell_state
 
         # prepare chosen words for next decoding step
         for j in range(k):
