@@ -6,6 +6,7 @@ from torch.autograd import Variable
 from torch.nn.utils.rnn import pack_padded_sequence
 import torch.optim as optim
 import torch.nn as nn
+from torch.nn.functional import softmax, log_softmax
 import numpy as np
 import utils
 from data_loader import get_coco_data_loader, get_basic_loader
@@ -14,6 +15,58 @@ from vocab import Vocabulary, load_vocab
 import os
 from tqdm import tqdm
 
+def beam_sample(decoder, features, max_len=25, k=5):
+    batch_size = features.shape[0]
+    output_ids = torch.zeros(batch_size, k, max_len, dtype=torch.int).cuda()
+    output_probs = torch.ones(batch_size, k, dtype=torch.int).cuda()
+    states = [None for i in range(k)]
+    inputs = [features.unsqueeze(1) for i in range(k)] # (B, 1, H)
+    vocab_size = decoder.linear.out_features
+
+    for i in range(max_len):
+        # pass data through recurrent network
+        outputs = []
+        for j in range(k):
+            hiddens, states[j] = decoder.unit(inputs[j], states[j])
+            logits = decoder.linear(hiddens.squeeze(1))
+            # outputs.append(softmax(logits, dim=1))
+            outputs.append(logits)
+            outputs[j] += output_probs[:, j].unsqueeze(1).expand(batch_size, vocab_size)
+
+        if i == 0:
+            outputs = outputs[0]
+        else:
+            outputs = torch.cat(outputs, dim=1)
+
+        predicted = outputs.topk(k, dim=1)[1]
+        output_probs = predicted.detach().clone()
+        branch_ids = predicted // vocab_size
+        predicted %= vocab_size
+
+        new_ids = torch.zeros(batch_size, k, max_len, dtype=torch.int)
+        for b in range(batch_size):
+            new_ids[b] = output_ids[b, branch_ids[b]]
+            # for j in range(k):
+            #     new_ids[b, j] = output_ids[b, branch_ids[b, j]]
+            new_ids[b, :, i] = predicted[b]
+        
+        output_ids = new_ids
+
+        new_states = [(torch.zeros(*states[j][0].shape).cuda(), torch.zeros(*states[j][1].shape).cuda()) for j in range(k)]
+        for b in range(batch_size):
+            for j in range(k):
+                new_states[j][0][0, b] = states[branch_ids[b, j]][0][0, b]
+                new_states[j][1][0, b] = states[branch_ids[b, j]][1][0, b]
+        states = new_states
+
+        # prepare chosen words for next decoding step
+        for j in range(k):
+            inputs[j] = decoder.embeddings(predicted[:, j])
+            inputs[j] = inputs[j].unsqueeze(1)
+        # print("inputs shape: {}".format(inputs.shape))
+    output_ids = output_ids[:, 0, :]
+    print(output_ids.shape)
+    return output_ids.squeeze()
 
 def main(args):
     # hyperparameters
@@ -33,7 +86,7 @@ def main(args):
     loader = get_basic_loader(dir_path=os.path.join(args.image_path),
                               transform=transform,
                               batch_size=batch_size,
-                              shuffle=True,
+                              shuffle=False,
                               num_workers=num_workers)
 
     # Build the models
@@ -65,7 +118,8 @@ def main(args):
                 images = utils.to_var(images)
 
                 features = encoder(images)
-                captions = decoder.sample(features)
+                captions = beam_sample(decoder, features)
+                # captions = decoder.sample(features)
                 captions = captions.cpu().data.numpy()
                 captions = [
                     utils.convert_back_to_text(cap, vocab) for cap in captions
@@ -75,7 +129,7 @@ def main(args):
                     'caption': cap
                 } for img_id, cap in zip(image_ids, captions)]
                 results.extend(captions_formatted)
-                print('Sample:', captions_formatted)
+                print('Sample:', captions_formatted[0])
     except KeyboardInterrupt:
         print('Ok bye!')
     finally:

@@ -32,9 +32,9 @@ def imshow(inp, figsize=None, title=None):
 
 
 def unpickle(file):
-    import cPickle
+    import pickle
     with open(file, 'rb') as fo:
-        dict = cPickle.load(fo)
+        dict = pickle.load(fo)
     return dict
 
 

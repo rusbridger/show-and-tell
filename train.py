@@ -59,10 +59,10 @@ def main(args):
     initial_step = initial_epoch = 0
     embed_size = args.embed_size
     num_hiddens = args.num_hidden
-    learning_rate = 1e-3
-    num_epochs = 3
+    learning_rate = 0.005
+    num_epochs = 50
     log_step = args.log_step
-    save_step = 1000
+    save_step = 1500
     checkpoint_dir = args.checkpoint_dir
 
     encoder = CNN(embed_size)
